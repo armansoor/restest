@@ -83,9 +83,7 @@ const game = {
     },
 
     runVotingPhase: function() {
-        // Collect votes
         let votes = [];
-        let humanVoters = this.players.filter(p => p.isHuman);
         
         // AI Votes instantly
         this.players.forEach(p => {
@@ -94,11 +92,16 @@ const game = {
             }
         });
 
-        // Show interface for humans
+        let humanVoters = this.players.filter(p => p.isHuman);
+
         if(humanVoters.length > 0) {
-            ui.updateActionArea('vote', votes);
+            // Start Turn Manager for Humans
+            ui.updateActionArea('vote_pending');
+            turnManager.start(humanVoters, 'vote', (humanVotes) => {
+                let allVotes = votes.concat(humanVotes);
+                game.resolveVotes(allVotes);
+            }, []);
         } else {
-            // All bots
             this.resolveVotes(votes);
         }
     },
@@ -125,11 +128,8 @@ const game = {
             this.leaderIndex = (this.leaderIndex + 1) % this.players.length;
             
             if(this.voteTrack >= 5) {
-                ui.log("5 Rejected Votes. Spies Win this round!");
-                this.missionHistory.push(false); // Spies get a point
-                this.currentMissionIndex++;
-                this.voteTrack = 0;
-                this.checkGameEnd();
+                ui.log("5 Rejected Votes. SPIES WIN THE GAME!");
+                ui.showEndScreen(false); // Spies win immediately
             } else {
                 this.startRound();
             }
@@ -141,8 +141,10 @@ const game = {
         let humansOnTeam = this.proposedTeam.filter(id => this.players[id].isHuman);
         
         if(humansOnTeam.length > 0) {
-            // We handle humans one by one (simplified for this version)
-            ui.updateActionArea('mission', humansOnTeam);
+            ui.updateActionArea('mission_pending');
+            turnManager.start(humansOnTeam, 'mission', (humanActions) => {
+                game.resolveMission(humanActions);
+            }, []);
         } else {
             setTimeout(() => this.resolveMission([]), 2000);
         }
@@ -296,13 +298,123 @@ const ai = {
     }
 };
 
+/* --- TURN MANAGER (HOTSEAT) --- */
+const turnManager = {
+    queue: [],
+    actionCallback: null,
+    currentAction: null, // 'vote' or 'mission'
+    data: null,
+
+    start: function(players, action, callback, data) {
+        this.queue = [...players];
+        this.currentAction = action;
+        this.actionCallback = callback;
+        this.data = data || [];
+        this.next();
+    },
+
+    next: function() {
+        if(this.queue.length === 0) {
+            // All done, return to game screen and callback
+            ui.showScreen('game');
+            this.actionCallback(this.data);
+            return;
+        }
+
+        let p = this.queue.shift();
+        ui.showPassScreen(p);
+    },
+
+    confirmReady: function() {
+        let p = ui.pendingPlayer;
+        ui.showPrivateScreen(p, this.currentAction);
+    },
+
+    submitAction: function(result) {
+        this.data.push(result);
+        this.next();
+    }
+};
+
 /* --- UI CONTROLLER --- */
 const ui = {
-    screens: ['menu', 'game', 'rules'],
+    screens: ['menu', 'game', 'rules', 'pass', 'private'],
+    pendingPlayer: null,
     
     showScreen: function(id) {
         this.screens.forEach(s => document.getElementById('screen-'+s).classList.remove('active'));
         document.getElementById('screen-'+id).classList.add('active');
+    },
+
+    showPassScreen: function(player) {
+        this.pendingPlayer = player;
+        document.getElementById('pass-player-name').innerText = player.name;
+        this.showScreen('pass');
+    },
+
+    showPrivateScreen: function(player, action) {
+        this.showScreen('private');
+        const title = document.getElementById('private-title');
+        const desc = document.getElementById('private-desc');
+        const info = document.getElementById('private-role-info');
+        const btns = document.getElementById('private-buttons');
+        btns.innerHTML = '';
+
+        // Show Role Info
+        let roleName = player.role.toUpperCase();
+        let roleClass = player.role === 'spy' ? 'log-bad' : 'log-good';
+        info.innerHTML = `You are: <span class="${roleClass}">${roleName}</span>`;
+
+        // If Spy, show partners
+        if(player.role === 'spy') {
+            let partners = game.players.filter(p => p.role === 'spy' && p.id !== player.id);
+            if(partners.length > 0) {
+                let names = partners.map(p => p.name).join(', ');
+                info.innerHTML += `<br><span style="font-size:0.8em">Allies: ${names}</span>`;
+            }
+        }
+
+        if(action === 'vote') {
+            title.innerText = "VOTE ON TEAM";
+            desc.innerText = `Leader proposed: ${game.proposedTeam.map(id => game.players[id].name).join(', ')}`;
+
+            let btnYes = document.createElement('button');
+            btnYes.className = 'btn';
+            btnYes.innerText = "APPROVE";
+            btnYes.onclick = () => turnManager.submitAction({id: player.id, approve: true});
+
+            let btnNo = document.createElement('button');
+            btnNo.className = 'btn btn-red';
+            btnNo.innerText = "REJECT";
+            btnNo.onclick = () => turnManager.submitAction({id: player.id, approve: false});
+
+            btns.appendChild(btnYes);
+            btns.appendChild(btnNo);
+        } else if (action === 'mission') {
+            title.innerText = "MISSION ACTION";
+            desc.innerText = "Choose your action carefully.";
+
+            if(player.role === 'spy') {
+                let btnFail = document.createElement('button');
+                btnFail.className = 'btn btn-red';
+                btnFail.innerText = "SABOTAGE";
+                btnFail.onclick = () => turnManager.submitAction({id: player.id, fail: true});
+
+                let btnSuccess = document.createElement('button');
+                btnSuccess.className = 'btn';
+                btnSuccess.innerText = "SUPPORT (BLUFF)";
+                btnSuccess.onclick = () => turnManager.submitAction({id: player.id, fail: false});
+
+                btns.appendChild(btnSuccess);
+                btns.appendChild(btnFail);
+            } else {
+                let btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.innerText = "SUPPORT MISSION";
+                btn.onclick = () => turnManager.submitAction({id: player.id, fail: false});
+                btns.appendChild(btn);
+            }
+        }
     },
 
     initGameScreen: function(totalP) {
@@ -322,6 +434,14 @@ const ui = {
     renderPlayers: function() {
         const grid = document.getElementById('player-grid');
         grid.innerHTML = '';
+
+        // Check for Single Player Spy Visibility
+        let showAllSpies = false;
+        let humans = game.players.filter(p => p.isHuman);
+        if(humans.length === 1 && humans[0].role === 'spy') {
+            showAllSpies = true;
+        }
+
         game.players.forEach(p => {
             let div = document.createElement('div');
             div.className = `player-card ${game.proposedTeam.includes(p.id) ? 'selected' : ''}`;
@@ -331,6 +451,8 @@ const ui = {
             let roleText = "";
             if(p.isHuman) {
                 roleText = `<div class="badge ${p.role === 'spy' ? 'role-spy' : 'role-res'}">${p.role.toUpperCase()}</div>`;
+            } else if (showAllSpies && p.role === 'spy') {
+                roleText = `<div class="badge role-spy">SPY (KNOWN)</div>`;
             }
 
             div.innerHTML = `
@@ -396,66 +518,14 @@ const ui = {
             }
         }
 
-        if(phase === 'vote') {
+        if(phase === 'vote' || phase === 'vote_pending') {
             title.innerText = "Phase: Voting";
-            desc.innerText = "Approve or Reject the proposed team.";
-            
-            // For simplified Hotseat, we just show buttons. 
-            // In a real app, you'd hide/show for each player.
-            let humanVoters = game.players.filter(p => p.isHuman);
-            
-            let btnApprove = document.createElement('button');
-            btnApprove.className = 'btn';
-            btnApprove.innerText = "APPROVE (ALL HUMANS)";
-            btnApprove.onclick = () => {
-                let votes = data || [];
-                humanVoters.forEach(h => votes.push({id: h.id, approve: true}));
-                game.resolveVotes(votes);
-            };
-
-            let btnReject = document.createElement('button');
-            btnReject.className = 'btn btn-red';
-            btnReject.innerText = "REJECT (ALL HUMANS)";
-            btnReject.onclick = () => {
-                let votes = data || [];
-                humanVoters.forEach(h => votes.push({id: h.id, approve: false}));
-                game.resolveVotes(votes);
-            };
-
-            // Note: This simplified voting applies the SAME vote for all humans if multiple exist.
-            // A full pass-and-play UI is much larger, but this fits the "Simple" request.
-            area.appendChild(btnApprove);
-            area.appendChild(btnReject);
+            desc.innerText = "Check your private screen.";
         }
 
-        if(phase === 'mission') {
+        if(phase === 'mission' || phase === 'mission_pending') {
             title.innerText = "Phase: Mission";
-            desc.innerText = "Spies may sabotage.";
-            let humans = data;
-            
-            // Assume first human on team for simplicity
-            let activeHuman = humans[0];
-            
-            if(activeHuman.role === 'spy') {
-                let btnFail = document.createElement('button');
-                btnFail.className = 'btn btn-red';
-                btnFail.innerText = "SABOTAGE";
-                btnFail.onclick = () => game.resolveMission([{id: activeHuman.id, fail: true}]);
-                
-                let btnSuccess = document.createElement('button');
-                btnSuccess.className = 'btn';
-                btnSuccess.innerText = "SUPPORT (BLUFF)";
-                btnSuccess.onclick = () => game.resolveMission([{id: activeHuman.id, fail: false}]);
-
-                area.appendChild(btnSuccess);
-                area.appendChild(btnFail);
-            } else {
-                let btn = document.createElement('button');
-                btn.className = 'btn';
-                btn.innerText = "SUPPORT MISSION";
-                btn.onclick = () => game.resolveMission([{id: activeHuman.id, fail: false}]);
-                area.appendChild(btn);
-            }
+            desc.innerText = "Mission in progress... Check private screen.";
         }
     },
 
@@ -487,3 +557,4 @@ const ui = {
 document.getElementById('btn-init').addEventListener('click', () => game.init());
 document.getElementById('btn-rules').addEventListener('click', () => ui.showScreen('rules'));
 document.getElementById('btn-back-menu').addEventListener('click', () => ui.showScreen('menu'));
+document.getElementById('btn-pass-confirm').addEventListener('click', () => turnManager.confirmReady());
