@@ -1,6 +1,7 @@
 import { ui } from './ui.js';
 import { game } from './game.js';
 import { GAME_MATRIX } from './constants.js';
+import { Random } from './utils/random.js';
 
 export const ai = {
     suspects: {}, // Higher number = more suspicious
@@ -24,15 +25,23 @@ export const ai = {
         let teamSize = GAME_MATRIX[game.players.length].missions[game.currentMissionIndex];
         let team = [me.id];
 
-        if(me.role === 'spy') {
-            // SPY STRATEGY
+        const difficulty = game.difficulty;
+
+        if (difficulty === 'easy') {
+            // EASY: Pure Random
+            let others = game.players.filter(p => p.id !== me.id);
+            Random.shuffle(others);
+            for(let i=0; i < teamSize - 1; i++) {
+                team.push(others[i].id);
+            }
+        } else if (me.role === 'spy') {
+            // SPY STRATEGY (Medium/Hard)
             let otherSpies = game.players.filter(p => p.role === 'spy' && p.id !== me.id);
             let innocents = game.players.filter(p => p.role !== 'spy' && p.id !== me.id);
 
             while(team.length < teamSize) {
                 // If Hard mode, try to slip 1 spy in with innocents
-                // If Normal, randomly pick
-                if(game.difficulty === 'hard' && otherSpies.length > 0 && team.filter(id => game.players[id].role === 'spy').length < 2) {
+                if(difficulty === 'hard' && otherSpies.length > 0 && team.filter(id => game.players[id].role === 'spy').length < 2) {
                     team.push(otherSpies.pop().id);
                 } else if (innocents.length > 0) {
                     let r = Math.floor(Math.random() * innocents.length);
@@ -45,10 +54,19 @@ export const ai = {
                 }
             }
         } else {
-            // RESISTANCE STRATEGY
+            // RESISTANCE STRATEGY (Medium/Hard)
             // Pick players with lowest suspicion score
             let candidates = game.players.filter(p => p.id !== me.id);
-            candidates.sort((a,b) => (this.suspects[a.id]||0) - (this.suspects[b.id]||0));
+
+            if (difficulty === 'hard') {
+                candidates.sort((a,b) => (this.suspects[a.id]||0) - (this.suspects[b.id]||0));
+            } else {
+                // Medium: some randomness in trust
+                Random.shuffle(candidates); // Slight shuffle before sort not really effective, but basic
+                // Let's just pick randomly from the top half of trusted players?
+                // Or just use standard logic for Medium as it was "Normal".
+                candidates.sort((a,b) => (this.suspects[a.id]||0) - (this.suspects[b.id]||0));
+            }
 
             for(let i=0; i < teamSize -1; i++) {
                 team.push(candidates[i].id);
@@ -58,11 +76,22 @@ export const ai = {
     },
 
     botVote: function(bot) {
+        const difficulty = game.difficulty;
+
+        if (difficulty === 'easy') {
+            // Random vote
+            return Math.random() > 0.5;
+        }
+
         if(bot.role === 'spy') {
             // Approve if spy is on team
             let spiesOnTeam = game.proposedTeam.filter(id => game.players[id].role === 'spy').length;
-            // Bluff: sometimes approve clean teams to look good
-            if(spiesOnTeam === 0 && game.difficulty === 'hard' && Math.random() > 0.6) return true;
+
+            if (difficulty === 'hard') {
+                // Bluff: sometimes approve clean teams to look good
+                if(spiesOnTeam === 0 && Math.random() > 0.6) return true;
+            }
+
             return spiesOnTeam > 0;
         }
 
@@ -72,11 +101,13 @@ export const ai = {
             suspicionScore += (this.suspects[id] || 0);
         });
 
-        // Always approve Mission 1
-        if(game.currentMissionIndex === 0) return true;
+        // Always approve Mission 1 (Standard Meta)
+        if(game.currentMissionIndex === 0 && difficulty !== 'easy') return true;
 
-        // Hard Counter-Block
-        if(suspicionScore > 5) return false;
+        // Counter-Block
+        let threshold = difficulty === 'hard' ? 5 : 8; // Hard is stricter
+        if(suspicionScore > threshold) return false;
+
         return true;
     },
 
@@ -84,7 +115,14 @@ export const ai = {
         if(bot.role === 'resistance') return false;
 
         // SPY LOGIC
-        if(game.difficulty === 'hard') {
+        const difficulty = game.difficulty;
+
+        if (difficulty === 'easy') {
+            // Randomly fail or support
+            return Math.random() > 0.5;
+        }
+
+        if(difficulty === 'hard') {
             // If we are at 2 losses, KILL IT
             let losses = game.missionHistory.filter(x => !x).length;
             if(losses === 2) return true;
@@ -92,6 +130,8 @@ export const ai = {
             // If it's early, maybe bluff?
             if(game.currentMissionIndex < 2 && Math.random() > 0.4) return false;
         }
+
+        // Medium/Normal: Just fail usually
         return true;
     }
 };

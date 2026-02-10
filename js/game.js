@@ -1,6 +1,7 @@
 import { GAME_MATRIX } from './constants.js';
 import { ai } from './ai.js';
 import { eventBus } from './eventBus.js';
+import { Random } from './utils/random.js';
 
 export const game = {
     players: [],
@@ -33,7 +34,7 @@ export const game = {
         let spyCount = GAME_MATRIX[totalP].spies;
         let roles = Array(totalP).fill('resistance');
         for(let i=0; i<spyCount; i++) roles[i] = 'spy';
-        roles = this.shuffle(roles);
+        roles = Random.shuffle(roles);
 
         // Create Players
         for(let i=0; i<totalP; i++) {
@@ -59,10 +60,6 @@ export const game = {
         // Emit Init Event
         eventBus.emit('gameInit', { totalPlayers: totalP, players: this.players });
         this.startRound();
-    },
-
-    shuffle: function(array) {
-        return array.sort(() => Math.random() - 0.5);
     },
 
     startRound: function() {
