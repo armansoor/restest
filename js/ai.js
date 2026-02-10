@@ -7,15 +7,24 @@ export const ai = {
     suspects: {}, // Higher number = more suspicious
 
     recordMission: function(teamIds, success) {
+        const difficulty = game.difficulty;
+        let suspicionIncrease = 10;
+        let trustIncrease = 2;
+
+        if (difficulty === 'hard') {
+            suspicionIncrease = 20; // Hard bots get very suspicious
+            trustIncrease = 1; // Hard bots are slow to trust
+        }
+
         if(!success) {
             teamIds.forEach(id => {
                 if(!this.suspects[id]) this.suspects[id] = 0;
-                this.suspects[id] += 10; // Major suspicion increase
+                this.suspects[id] += suspicionIncrease;
             });
         } else {
             // Slight trust increase if mission succeeds
             teamIds.forEach(id => {
-                if(this.suspects[id] > 0) this.suspects[id] -= 2;
+                if(this.suspects[id] > 0) this.suspects[id] -= trustIncrease;
             });
         }
     },
@@ -126,6 +135,15 @@ export const ai = {
             // If we are at 2 losses, KILL IT
             let losses = game.missionHistory.filter(x => !x).length;
             if(losses === 2) return true;
+
+            // Check if another spy is on the team
+            let otherSpiesOnTeam = game.proposedTeam
+                .filter(id => id !== bot.id)
+                .map(id => game.players[id])
+                .filter(p => p.role === 'spy').length;
+
+            // If another spy is on team, 50% chance to let them handle it to avoid double-fail
+            if (otherSpiesOnTeam > 0 && Math.random() > 0.5) return false;
 
             // If it's early, maybe bluff?
             if(game.currentMissionIndex < 2 && Math.random() > 0.4) return false;

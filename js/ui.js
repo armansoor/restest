@@ -16,6 +16,9 @@ export const ui = {
 
     initGameScreen: function(totalP, players) {
         this.showScreen('game');
+        document.getElementById('game-status-text').innerText = "SYSTEM ONLINE";
+        document.getElementById('game-status-text').style.color = "var(--accent-blue)";
+
         const track = document.getElementById('mission-track');
         track.innerHTML = '';
         GAME_MATRIX[totalP].missions.forEach((num, idx) => {
@@ -151,7 +154,35 @@ export const ui = {
             if(curr) curr.classList.add('mission-current');
         }
 
+        if(state && state.voteTrack !== undefined) {
+            this.updateVoteTrack(state.voteTrack);
+        }
+
         if(phase) this.updateActionArea(phase);
+    },
+
+    updateVoteTrack: function(count) {
+        // We can inject this into the header or near mission track
+        // For simplicity, let's update a specific element or append if missing
+        let track = document.getElementById('vote-track-display');
+        if(!track) {
+            track = document.createElement('div');
+            track.id = 'vote-track-display';
+            track.style.textAlign = 'center';
+            track.style.marginBottom = '10px';
+            track.style.color = 'var(--text-dim)';
+            // Insert after mission track
+            document.getElementById('mission-track').after(track);
+        }
+
+        // Visual bubbles for rejected votes
+        let bubbles = '';
+        for(let i=0; i<5; i++) {
+            let color = i < count ? 'var(--accent-red)' : '#333';
+            bubbles += `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${color};margin:0 2px;"></span>`;
+        }
+
+        track.innerHTML = `Rejected Proposals: ${bubbles}`;
     },
 
     updateActionArea: function(phase) {
@@ -204,6 +235,9 @@ export const ui = {
         const area = document.getElementById('action-buttons');
         document.getElementById('phase-title').innerText = "GAME OVER";
         document.getElementById('phase-desc').innerText = resistanceWon ? "Resistance wins!" : "Spies win!";
+
+        document.getElementById('game-status-text').innerText = "MISSION COMPLETE";
+        document.getElementById('game-status-text').style.color = resistanceWon ? "var(--accent-blue)" : "var(--accent-red)";
 
         area.innerHTML = `<button class='btn' onclick='location.reload()'>Play Again</button>`;
 
