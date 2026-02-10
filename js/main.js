@@ -2,11 +2,16 @@ import { game } from './game.js';
 import { ui } from './ui.js';
 import { eventBus } from './eventBus.js';
 import { network } from './network.js';
+import { chatter } from './chatter.js';
+
+// Initialize subsystems
+chatter.init();
 
 // --- Global Expose ---
 window.game = game;
 window.ui = ui;
 window.network = network;
+window.chatter = chatter;
 
 // --- Network Event Listeners ---
 
@@ -326,8 +331,21 @@ eventBus.on('gameInit', () => {
 });
 
 eventBus.on('chatMessage', (data) => {
+    // Ensure chat container is visible even in Single Player if bots chat
+    const chatContainer = document.getElementById('chat-container');
+    if (chatContainer.style.display === 'none' && data.isBot) {
+        chatContainer.style.display = 'block';
+        // Disable input for single player if we only want bots to talk?
+        // Actually, let's allow player to talk to void (logs) or bots.
+    }
+
     const box = document.getElementById('chat-messages');
     const div = document.createElement('div');
+    div.style.marginBottom = "4px";
+    if (data.isBot) {
+        div.style.color = "#aaa";
+        div.style.fontStyle = "italic";
+    }
     div.innerText = `${data.sender}: ${data.msg}`;
     box.appendChild(div);
     box.scrollTop = box.scrollHeight;
