@@ -1,22 +1,23 @@
 import { GAME_MATRIX } from './constants.js';
 import { ai } from './ai.js';
-import { ui } from './ui.js';
-import { turnManager } from './turnManager.js';
+import { eventBus } from './eventBus.js';
 
 export const game = {
     players: [],
-    missionHistory: [], // [true, false, true...]
+    missionHistory: [],
     currentMissionIndex: 0,
-    voteTrack: 0, // 5 rejected votes = spies win round
+    voteTrack: 0,
     leaderIndex: 0,
     difficulty: 'normal',
     phase: 'setup',
     proposedTeam: [],
+    isMultiplayer: false,
 
-    init: function() {
-        const totalP = parseInt(document.getElementById('setup-players').value);
-        const humanP = parseInt(document.getElementById('setup-humans').value);
-        this.difficulty = document.getElementById('setup-difficulty').value;
+    init: function(settings) {
+        const totalP = settings.totalPlayers;
+        const humanP = settings.humanPlayers;
+        this.difficulty = settings.difficulty;
+        this.isMultiplayer = settings.isMultiplayer || false;
 
         // Reset State
         this.players = [];
@@ -38,12 +39,13 @@ export const game = {
                 id: i,
                 role: roles[i],
                 isHuman: i < humanP,
-                name: i < humanP ? `Player ${i+1} (YOU)` : `Bot ${i+1}`,
+                name: i < humanP ? `Player ${i+1}` : `Bot ${i+1}`,
                 suspicion: 0
             });
         }
 
-        ui.initGameScreen(totalP);
+        // Emit Init Event
+        eventBus.emit('gameInit', { totalPlayers: totalP, players: this.players });
         this.startRound();
     },
 
@@ -54,25 +56,28 @@ export const game = {
     startRound: function() {
         this.phase = 'propose';
         this.proposedTeam = [];
-        ui.renderBoard();
+
+        // Notify UI of state update
+        this.emitStateUpdate();
 
         let currentLeader = this.players[this.leaderIndex];
-        ui.log(`--- Mission ${this.currentMissionIndex + 1} Start ---`);
-        ui.log(`Leader is ${currentLeader.name}. Vote Track: ${this.voteTrack}/5`);
+        eventBus.emit('log', `--- Mission ${this.currentMissionIndex + 1} Start ---`);
+        eventBus.emit('log', `Leader is ${currentLeader.name}. Vote Track: ${this.voteTrack}/5`);
 
         // If Leader is Bot, make them propose immediately
         if(!currentLeader.isHuman) {
             setTimeout(() => ai.botProposeTeam(), 1200);
         } else {
-            ui.updateActionArea('propose');
+            // Wait for human input (handled by UI calling submitTeam)
+            eventBus.emit('phaseChange', { phase: 'propose' });
         }
     },
 
     submitTeam: function(teamIds) {
         this.proposedTeam = teamIds;
-        ui.log(`Leader proposed: ${teamIds.map(id => game.players[id].name).join(', ')}`);
+        eventBus.emit('log', `Leader proposed: ${teamIds.map(id => game.players[id].name).join(', ')}`);
         this.phase = 'vote';
-        ui.renderBoard();
+        this.emitStateUpdate();
         this.runVotingPhase();
     },
 
@@ -86,15 +91,21 @@ export const game = {
             }
         });
 
+        // Identify pending human voters
         let humanVoters = this.players.filter(p => p.isHuman);
 
         if(humanVoters.length > 0) {
-            // Start Turn Manager for Humans
-            ui.updateActionArea('vote_pending');
-            turnManager.start(humanVoters, 'vote', (humanVotes) => {
-                let allVotes = votes.concat(humanVotes);
-                game.resolveVotes(allVotes);
-            }, []);
+            // Emit event to request human votes
+            // If Single Player (1 human), UI handles it directly
+            // If Multiplayer, Network handles it
+            eventBus.emit('requestVotes', {
+                voters: humanVoters,
+                currentVotes: votes,
+                callback: (humanVotes) => {
+                     let allVotes = votes.concat(humanVotes);
+                     this.resolveVotes(allVotes);
+                }
+            });
         } else {
             this.resolveVotes(votes);
         }
@@ -104,26 +115,26 @@ export const game = {
         let approves = votes.filter(v => v.approve).length;
         let rejects = votes.filter(v => !v.approve).length;
 
-        let resultString = votes.map(v => {
-            let pName = game.players[v.id].name;
-            return `${pName}: ${v.approve ? '<span class="log-good">YES</span>' : '<span class="log-bad">NO</span>'}`;
-        }).join('<br>');
+        // Construct vote string for UI
+        let voteResults = votes.map(v => {
+            return { name: this.players[v.id].name, approve: v.approve };
+        });
 
-        ui.log(`Votes:<br>${resultString}`);
+        eventBus.emit('voteResults', voteResults);
 
         if(approves > rejects) {
-            ui.log("Team APPROVED. Proceeding to Mission.");
+            eventBus.emit('log', "Team APPROVED. Proceeding to Mission.");
             this.voteTrack = 0;
             this.phase = 'mission';
             this.runMissionPhase();
         } else {
-            ui.log("Team REJECTED. Leadership passes.");
+            eventBus.emit('log', "Team REJECTED. Leadership passes.");
             this.voteTrack++;
             this.leaderIndex = (this.leaderIndex + 1) % this.players.length;
 
             if(this.voteTrack >= 5) {
-                ui.log("5 Rejected Votes. SPIES WIN THE GAME!");
-                ui.showEndScreen(false); // Spies win immediately
+                eventBus.emit('log', "5 Rejected Votes. SPIES WIN THE GAME!");
+                eventBus.emit('gameOver', { resistanceWon: false });
             } else {
                 this.startRound();
             }
@@ -131,17 +142,19 @@ export const game = {
     },
 
     runMissionPhase: function() {
-        ui.renderBoard();
+        this.emitStateUpdate();
         // Convert IDs to Player objects
         let humansOnTeam = this.proposedTeam
             .map(id => this.players[id])
             .filter(p => p.isHuman);
 
         if(humansOnTeam.length > 0) {
-            ui.updateActionArea('mission_pending');
-            turnManager.start(humansOnTeam, 'mission', (humanActions) => {
-                game.resolveMission(humanActions);
-            }, []);
+            eventBus.emit('requestMissionActions', {
+                agents: humansOnTeam,
+                callback: (humanActions) => {
+                    this.resolveMission(humanActions);
+                }
+            });
         } else {
             setTimeout(() => this.resolveMission([]), 2000);
         }
@@ -170,9 +183,9 @@ export const game = {
         let required = GAME_MATRIX[totalPlayers].failsRequired[this.currentMissionIndex];
         let success = fails < required;
 
-        ui.log(`Mission Outcome: ${fails} FAILS.`);
-        if(success) ui.log(`<span class="log-good">RESISTANCE SUCCESS!</span>`);
-        else ui.log(`<span class="log-bad">MISSION FAILED!</span>`);
+        eventBus.emit('log', `Mission Outcome: ${fails} FAILS.`);
+        if(success) eventBus.emit('logSuccess', "RESISTANCE SUCCESS!");
+        else eventBus.emit('logFail', "MISSION FAILED!");
 
         // AI learns
         ai.recordMission(this.proposedTeam, success);
@@ -188,14 +201,26 @@ export const game = {
         let wins = this.missionHistory.filter(x => x).length;
         let losses = this.missionHistory.filter(x => !x).length;
 
-        ui.renderBoard();
+        this.emitStateUpdate();
 
         if(wins >= 3) {
-            ui.showEndScreen(true);
+            eventBus.emit('gameOver', { resistanceWon: true });
         } else if (losses >= 3) {
-            ui.showEndScreen(false);
+            eventBus.emit('gameOver', { resistanceWon: false });
         } else {
             setTimeout(() => this.startRound(), 2500);
         }
+    },
+
+    emitStateUpdate: function() {
+        eventBus.emit('stateUpdate', {
+            players: this.players,
+            missionHistory: this.missionHistory,
+            currentMissionIndex: this.currentMissionIndex,
+            voteTrack: this.voteTrack,
+            leaderIndex: this.leaderIndex,
+            phase: this.phase,
+            proposedTeam: this.proposedTeam
+        });
     }
 };
