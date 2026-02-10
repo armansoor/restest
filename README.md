@@ -4,7 +4,7 @@
 
 This implementation features a robust **Single Player** mode against AI bots and a **Multiplayer** mode that works over LAN or the Internet using Peer-to-Peer (WebRTC) technology.
 
-![Game Preview](https://via.placeholder.com/800x400?text=The+Resistance+Web+Game)
+![Game Preview](https://armansoor.github.io/restest/)
 
 ## 🚀 Features
 
