@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>THE RESISTANCE: AI PROTOCOL</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>THE RESISTANCE</h1>
+            <div class="status-bar">
+                <span id="game-status-text">SYSTEM OFFLINE</span>
+            </div>
+        </header>
+
+        <div id="screen-menu" class="screen active">
+            <div class="card">
+                <h2>New Game Configuration</h2>
+                
+                <div class="form-group">
+                    <label>Total Players (5-10)</label>
+                    <select id="setup-players">
+                        <option value="5">5 Players (2 Spies)</option>
+                        <option value="6">6 Players (2 Spies)</option>
+                        <option value="7">7 Players (3 Spies)</option>
+                        <option value="8">8 Players (3 Spies)</option>
+                        <option value="9">9 Players (3 Spies)</option>
+                        <option value="10">10 Players (4 Spies)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Human Players</label>
+                    <select id="setup-humans">
+                        <option value="1">1 Human (Solo vs AI)</option>
+                        <option value="2">2 Humans</option>
+                        <option value="3">3 Humans</option>
+                        <option value="5">All Humans (Hotseat)</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>AI Difficulty</label>
+                    <select id="setup-difficulty">
+                        <option value="normal">Normal (Standard Logic)</option>
+                        <option value="hard">Hard (Bluffing & Aggressive)</option>
+                    </select>
+                </div>
+
+                <button class="btn" id="btn-init">Initialize Protocol</button>
+                <button class="btn btn-outline" id="btn-rules">Mission Briefing (Rules)</button>
+            </div>
+        </div>
+
+        <div id="screen-rules" class="screen">
+            <div class="card">
+                <h2>Mission Briefing</h2>
+                <p><strong>OBJECTIVE:</strong> The Resistance must succeed 3 missions. The Spies must cause 3 missions to fail.</p>
+                <ul style="text-align: left; margin-bottom: 20px;">
+                    <li><strong>Team Building:</strong> The Leader proposes a team.</li>
+                    <li><strong>Voting:</strong> Everyone votes to Approve/Reject the team. Majority rules.</li>
+                    <li><strong>The Mission:</strong> 
+                        <ul>
+                            <li>Resistance MUST support success.</li>
+                            <li>Spies may Fail or Support (to bluff).</li>
+                        </ul>
+                    </li>
+                </ul>
+                <p class="alert-box"><strong>WARNING:</strong> The AI is designed to win. On Hard mode, Spies will gain your trust before betraying you on the final mission.</p>
+                <button class="btn" id="btn-back-menu">Back to Menu</button>
+            </div>
+        </div>
+
+        <div id="screen-game" class="screen">
+            <div class="mission-track" id="mission-track">
+                </div>
+
+            <div class="card" id="action-area">
+                <h3 id="phase-title">Phase: Setup</h3>
+                <p id="phase-desc">Waiting...</p>
+                <div id="action-buttons"></div>
+            </div>
+
+            <h3>Operatives</h3>
+            <div class="player-grid" id="player-grid">
+                </div>
+
+            <h3>Mission Log</h3>
+            <div id="game-log"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
