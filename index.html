@@ -20,9 +20,23 @@
         <div id="screen-menu" class="screen active">
             <div class="card">
                 <h2>Mode Selection</h2>
+                <div class="form-group">
+                    <label>Your Codename</label>
+                    <input type="text" id="player-name-input" placeholder="Enter Agent Name" value="Agent 007">
+                </div>
                 <button class="btn" id="btn-mode-single">Single Player (vs AI)</button>
                 <button class="btn" id="btn-mode-multi">Multiplayer (LAN/P2P)</button>
                 <button class="btn btn-outline" id="btn-rules">Mission Briefing (Rules)</button>
+            </div>
+        </div>
+
+        <div id="screen-role-reveal" class="screen">
+            <div class="card" style="text-align: center; padding: 40px;">
+                <h2>TOP SECRET</h2>
+                <p>Your identity for this mission is:</p>
+                <h1 id="reveal-role-text" style="font-size: 3em; margin: 30px 0;">...</h1>
+                <div id="reveal-allies" style="margin-bottom: 30px; color: #aaa;"></div>
+                <button class="btn" id="btn-reveal-confirm">I Understand</button>
             </div>
         </div>
 
@@ -118,12 +132,44 @@
                 <div id="action-buttons"></div>
             </div>
 
+            <button class="btn btn-outline" id="btn-show-history" style="margin-bottom: 10px;">Mission Logs & History</button>
+
             <h3>Operatives</h3>
             <div class="player-grid" id="player-grid">
                 </div>
 
             <h3>Mission Log</h3>
             <div id="game-log"></div>
+
+            <div id="chat-container" style="display:none; margin-top: 20px; border-top: 1px solid #444; padding-top: 10px;">
+                <h3>Comm Link</h3>
+                <div id="chat-messages" style="height: 100px; overflow-y: auto; background: #111; padding: 5px; font-size: 0.8rem; color: #ccc;"></div>
+                <div style="display:flex; gap: 5px; margin-top: 5px;">
+                    <input type="text" id="chat-input" placeholder="Secure message..." style="flex:1;">
+                    <button class="btn" id="btn-send-chat" style="width: auto; margin-bottom:0;">Send</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-history" class="screen">
+            <div class="card">
+                <h2>Mission History</h2>
+                <div id="history-container" style="overflow-x: auto;">
+                    <table id="history-table" style="width:100%; border-collapse: collapse; color: #eee;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #555;">
+                                <th style="padding:8px; text-align:left;">Mission</th>
+                                <th style="padding:8px; text-align:left;">Leader</th>
+                                <th style="padding:8px; text-align:left;">Team</th>
+                                <th style="padding:8px; text-align:left;">Votes</th>
+                                <th style="padding:8px; text-align:left;">Result</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <button class="btn btn-outline" id="btn-close-history" style="margin-top:20px;">Close</button>
+            </div>
         </div>
     </div>
 

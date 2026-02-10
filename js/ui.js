@@ -30,6 +30,34 @@ export const ui = {
 
     update: function(state, localId = 0) {
         this.renderBoard(state, localId);
+        if(state.voteHistoryLog) {
+            this.updateHistory(state.voteHistoryLog);
+        }
+    },
+
+    updateHistory: function(log) {
+        const tbody = document.querySelector('#history-table tbody');
+        if(!tbody) return;
+
+        tbody.innerHTML = '';
+        // Show last 10? or all.
+        log.slice().reverse().forEach(entry => {
+            let tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid #333';
+
+            let votesSummary = entry.votes.map(v =>
+                `<span style="color:${v.approve ? 'var(--accent-blue)' : 'var(--accent-red)'}" title="${v.name}">${v.approve ? '✓' : '✗'}</span>`
+            ).join(' ');
+
+            tr.innerHTML = `
+                <td style="padding:8px;">${entry.mission}</td>
+                <td style="padding:8px;">${entry.leader}</td>
+                <td style="padding:8px;">${entry.team}</td>
+                <td style="padding:8px;">${votesSummary}</td>
+                <td style="padding:8px; color:${entry.result==='Approved' ? 'var(--accent-blue)' : 'var(--accent-red)'}">${entry.result}</td>
+            `;
+            tbody.appendChild(tr);
+        });
     },
 
     renderPlayers: function(players, localId) {
@@ -185,6 +213,30 @@ export const ui = {
         });
         revealHTML += "</div>";
         document.getElementById('game-log').innerHTML = revealHTML;
+    },
+
+    showRoleReveal: function(player, allies, callback) {
+        this.showScreen('role-reveal');
+        const roleText = document.getElementById('reveal-role-text');
+        const alliesDiv = document.getElementById('reveal-allies');
+
+        roleText.innerText = player.role.toUpperCase();
+        roleText.className = player.role === 'spy' ? 'log-bad' : 'log-good';
+
+        if(allies.length > 0) {
+            alliesDiv.innerHTML = "Other Spies: " + allies.join(', ');
+        } else {
+            alliesDiv.innerHTML = "";
+        }
+
+        const btn = document.getElementById('btn-reveal-confirm');
+        // Remove old listeners to prevent double clicks if reused
+        let newBtn = btn.cloneNode(true);
+        btn.parentNode.replaceChild(newBtn, btn);
+
+        newBtn.addEventListener('click', () => {
+            callback();
+        });
     },
 
     showPassScreen: function(player) {

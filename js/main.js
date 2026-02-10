@@ -110,9 +110,23 @@ eventBus.on('log', (msg) => {
 });
 
 eventBus.on('gameInit', (data) => {
-    // Host starts game logic, this fires locally.
-    // Client receives stateUpdate later.
-    ui.initGameScreen(data.totalPlayers, data.players);
+    // Show Role Reveal instead of going straight to game
+    // We need to know OUR player object.
+    let myId = game.isMultiplayer ? (network.isHost ? 0 : network.myPlayerId) : 0;
+
+    // In Single Player, I am 0. In Multi, I have an ID.
+    // However, data.players is the full list.
+    let me = data.players.find(p => p.id === myId);
+
+    // Check for spies
+    let spies = [];
+    if(me && me.role === 'spy') {
+        spies = data.players.filter(p => p.role === 'spy' && p.id !== myId).map(p => p.name);
+    }
+
+    ui.showRoleReveal(me, spies, () => {
+        ui.initGameScreen(data.totalPlayers, data.players);
+    });
 });
 
 eventBus.on('gameOver', (data) => {
@@ -230,24 +244,33 @@ document.getElementById('btn-mode-multi').addEventListener('click', () => {
 document.getElementById('btn-start-single').addEventListener('click', () => {
     const totalP = parseInt(document.getElementById('setup-players').value);
     const diff = document.getElementById('setup-difficulty').value;
+
+    // Capture Player Name?
+    // We didn't pass playerName to game.init yet.
+    // game.js init creates players. We should pass the name.
+    const playerName = document.getElementById('player-name-input').value || "Agent 007";
+
     game.init({
         totalPlayers: totalP,
         humanPlayers: 1,
         difficulty: diff,
-        isMultiplayer: false
+        isMultiplayer: false,
+        playerName: playerName
     });
 });
 
 // Lobby Actions
 document.getElementById('btn-host-game').addEventListener('click', () => {
-    network.hostGame();
+    const playerName = document.getElementById('player-name-input').value || "Host";
+    network.hostGame(playerName);
     document.getElementById('lobby-host-area').style.display = 'block';
     document.getElementById('lobby-options').style.display = 'none';
 });
 
 document.getElementById('btn-join-game').addEventListener('click', () => {
     const roomId = document.getElementById('join-room-id').value;
-    if(roomId) network.joinGame(roomId);
+    const playerName = document.getElementById('player-name-input').value || "Agent";
+    if(roomId) network.joinGame(roomId, playerName);
 });
 
 document.getElementById('btn-start-multi').addEventListener('click', () => {
@@ -271,3 +294,42 @@ document.getElementById('btn-start-multi').addEventListener('click', () => {
 
 document.getElementById('btn-back-menu').addEventListener('click', () => ui.showScreen('menu'));
 document.getElementById('btn-back-menu-lobby').addEventListener('click', () => ui.showScreen('menu'));
+
+// History
+document.getElementById('btn-show-history').addEventListener('click', () => {
+    document.getElementById('screen-history').classList.add('active');
+});
+document.getElementById('btn-close-history').addEventListener('click', () => {
+    document.getElementById('screen-history').classList.remove('active');
+});
+
+// Chat
+eventBus.on('gameInit', () => {
+    if(game.isMultiplayer) {
+        document.getElementById('chat-container').style.display = 'block';
+    }
+});
+
+eventBus.on('chatMessage', (data) => {
+    const box = document.getElementById('chat-messages');
+    const div = document.createElement('div');
+    div.innerText = `${data.sender}: ${data.msg}`;
+    box.appendChild(div);
+    box.scrollTop = box.scrollHeight;
+});
+
+document.getElementById('btn-send-chat').addEventListener('click', () => {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if(!msg) return;
+
+    // Send to Network
+    if(network.isHost) {
+        network.broadcast({ type: 'chat', sender: 'Host', msg: msg });
+        eventBus.emit('chatMessage', { sender: 'Host (You)', msg: msg });
+    } else {
+        network.hostConn.send({ type: 'chat', msg: msg });
+        eventBus.emit('chatMessage', { sender: 'You', msg: msg });
+    }
+    input.value = '';
+});
