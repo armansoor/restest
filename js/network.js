@@ -34,25 +34,25 @@ export const network = {
         });
     },
 
-    hostGame: function() {
+    hostGame: function(playerName) {
         this.isHost = true;
         this.myPlayerId = 0;
         this.players = [{
             id: 0,
-            name: "Host (You)",
+            name: playerName,
             peerId: this.myId,
             isHuman: true
         }];
         eventBus.emit('playerListUpdate', this.players);
     },
 
-    joinGame: function(hostId) {
+    joinGame: function(hostId, playerName) {
         this.isHost = false;
         this.hostConn = this.peer.connect(hostId);
 
         this.hostConn.on('open', () => {
             console.log("Connected to host");
-            this.hostConn.send({ type: 'join', name: "Player " + Math.floor(Math.random()*1000) });
+            this.hostConn.send({ type: 'join', name: playerName });
         });
 
         this.hostConn.on('data', (data) => {
@@ -75,9 +75,11 @@ export const network = {
                 }
 
                 let newPlayerId = this.players.length;
+                // Use provided name or fallback
+                let pName = data.name || `Player ${newPlayerId + 1}`;
                 let newPlayer = {
                     id: newPlayerId,
-                    name: `Player ${newPlayerId + 1}`,
+                    name: pName,
                     peerId: conn.peer,
                     isHuman: true,
                     conn: conn
@@ -95,11 +97,19 @@ export const network = {
             }
 
             if(data.type === 'action') {
-                // We need to know WHICH player sent this action.
-                // We stored 'conn' in the player object.
                 let p = this.players.find(pl => pl.conn === conn);
                 if(p) {
                     eventBus.emit('networkAction', { playerId: p.id, action: data.action, payload: data.payload });
+                }
+            }
+
+            if(data.type === 'chat') {
+                let p = this.players.find(pl => pl.conn === conn);
+                if(p) {
+                    // Broadcast chat to everyone else
+                    this.broadcast({ type: 'chat', sender: p.name, msg: data.msg });
+                    // Emit locally
+                    eventBus.emit('chatMessage', { sender: p.name, msg: data.msg });
                 }
             }
         });
@@ -144,6 +154,7 @@ export const network = {
         }
         else if(data.type === 'log') eventBus.emit('log', data.msg);
         else if(data.type === 'gameOver') eventBus.emit('gameOver', data);
+        else if(data.type === 'chat') eventBus.emit('chatMessage', data);
     },
 
     broadcast: function(msg) {

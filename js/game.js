@@ -11,6 +11,7 @@ export const game = {
     difficulty: 'normal',
     phase: 'setup',
     proposedTeam: [],
+    voteHistoryLog: [], // Detailed logs { mission, leader, team, votes, result }
     isMultiplayer: false,
 
     init: function(settings) {
@@ -22,6 +23,7 @@ export const game = {
         // Reset State
         this.players = [];
         this.missionHistory = [];
+        this.voteHistoryLog = [];
         this.currentMissionIndex = 0;
         this.voteTrack = 0;
         this.leaderIndex = Math.floor(Math.random() * totalP);
@@ -35,11 +37,21 @@ export const game = {
 
         // Create Players
         for(let i=0; i<totalP; i++) {
+            let pName = `Bot ${i+1}`;
+            if (i < humanP) {
+                // If Single Player and i=0, use provided name
+                if (!this.isMultiplayer && i === 0 && settings.playerName) {
+                    pName = settings.playerName;
+                } else {
+                    pName = `Player ${i+1}`;
+                }
+            }
+
             this.players.push({
                 id: i,
                 role: roles[i],
                 isHuman: i < humanP,
-                name: i < humanP ? `Player ${i+1}` : `Bot ${i+1}`,
+                name: pName,
                 suspicion: 0
             });
         }
@@ -121,6 +133,17 @@ export const game = {
         });
 
         eventBus.emit('voteResults', voteResults);
+
+        let resultText = (approves > rejects) ? "Approved" : "Rejected";
+
+        // Log History
+        this.voteHistoryLog.push({
+            mission: this.currentMissionIndex + 1,
+            leader: this.players[this.leaderIndex].name,
+            team: this.proposedTeam.map(id => this.players[id].name).join(', '),
+            votes: voteResults,
+            result: resultText
+        });
 
         if(approves > rejects) {
             eventBus.emit('log', "Team APPROVED. Proceeding to Mission.");
@@ -220,7 +243,8 @@ export const game = {
             voteTrack: this.voteTrack,
             leaderIndex: this.leaderIndex,
             phase: this.phase,
-            proposedTeam: this.proposedTeam
+            proposedTeam: this.proposedTeam,
+            voteHistoryLog: this.voteHistoryLog
         });
     }
 };

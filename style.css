@@ -162,9 +162,34 @@ select, input {
 
 /* SCREENS & ANIMATION */
 .screen { display: none; }
-.screen.active { display: block; animation: fadeIn 0.4s; }
+.screen.active { display: block; animation: slideUp 0.5s ease-out; }
 
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+
+/* POLISH */
+.mission-current {
+    border-color: white;
+    transform: scale(1.1);
+    animation: pulse 2s infinite;
+}
+
+.player-card {
+    transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.player-card:hover { transform: translateY(-5px); }
+.player-card.selected { transform: scale(1.05); }
+
+/* Chat Polish */
+#chat-input {
+    border-radius: 4px 0 0 4px;
+    border-right: none;
+}
+#btn-send-chat {
+    border-radius: 0 4px 4px 0;
+    width: auto;
+}
 
 /* LOG */
 #game-log {
