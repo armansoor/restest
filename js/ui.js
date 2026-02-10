@@ -1,17 +1,20 @@
+// Assuming game state is mostly global or passed in.
 import { game } from './game.js';
 import { GAME_MATRIX } from './constants.js';
-import { turnManager } from './turnManager.js';
 
 export const ui = {
     screens: ['menu', 'game', 'rules', 'pass', 'private'],
     pendingPlayer: null,
 
     showScreen: function(id) {
-        this.screens.forEach(s => document.getElementById('screen-'+s).classList.remove('active'));
-        document.getElementById('screen-'+id).classList.add('active');
+        // Hide all screens first
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        // Show target
+        const target = document.getElementById('screen-'+id);
+        if(target) target.classList.add('active');
     },
 
-    initGameScreen: function(totalP) {
+    initGameScreen: function(totalP, players) {
         this.showScreen('game');
         const track = document.getElementById('mission-track');
         track.innerHTML = '';
@@ -22,38 +25,42 @@ export const ui = {
             node.id = `m-node-${idx}`;
             track.appendChild(node);
         });
-        this.renderPlayers();
+        this.renderPlayers(players);
     },
 
-    renderPlayers: function() {
+    update: function(state, localId = 0) {
+        this.renderBoard(state, localId);
+    },
+
+    renderPlayers: function(players, localId) {
         const grid = document.getElementById('player-grid');
         grid.innerHTML = '';
 
-        // Check for Single Player Spy Visibility (only if 1 human player)
-        let showAllSpies = false;
-        let humans = game.players.filter(p => p.isHuman);
-        if(humans.length === 1 && humans[0].role === 'spy') {
-            showAllSpies = true;
-        }
+        // Determine if local player is a spy
+        let localPlayer = players.find(p => p.id === localId);
+        let amISpy = localPlayer && localPlayer.role === 'spy';
 
-        game.players.forEach(p => {
+        players.forEach(p => {
             let div = document.createElement('div');
-            // Basic classes
             div.className = `player-card ${game.proposedTeam.includes(p.id) ? 'selected' : ''}`;
 
-            // Add visual distinction for leader
             if(p.id === game.leaderIndex) {
                 div.classList.add('is-leader');
-                // Ensure leader is visually distinct even without badge if needed
                 div.style.borderColor = 'var(--gold)';
             }
 
-            if(p.isHuman) div.classList.add('is-me');
+            // Is this me?
+            let isMe = (p.id === localId);
+            if(isMe) div.classList.add('is-me');
 
             let roleText = "";
-            if(p.isHuman) {
+            // Show role ONLY if:
+            // 1. It is ME
+            // 2. It is a Spy AND I am a Spy
+
+            if (isMe) {
                 roleText = `<div class="badge ${p.role === 'spy' ? 'role-spy' : 'role-res'}">${p.role.toUpperCase()}</div>`;
-            } else if (showAllSpies && p.role === 'spy') {
+            } else if (amISpy && p.role === 'spy') {
                 roleText = `<div class="badge role-spy">SPY (KNOWN)</div>`;
             }
 
@@ -61,8 +68,10 @@ export const ui = {
                 ? '<div class="badge" style="background:var(--gold);color:black;font-weight:bold;box-shadow:0 0 5px var(--gold);">LEADER</div>'
                 : '';
 
+            let nameText = p.name + (isMe ? " (YOU)" : "");
+
             div.innerHTML = `
-                <div style="font-size: 1.1em; margin-bottom: 4px;">${p.name}</div>
+                <div style="font-size: 1.1em; margin-bottom: 4px;">${nameText}</div>
                 ${roleText}
                 ${leaderBadge}
             `;
@@ -73,8 +82,14 @@ export const ui = {
 
     handlePlayerClick: function(id) {
         if(game.phase !== 'propose') return;
-        if(!game.players[game.leaderIndex].isHuman) return;
+        // In multiplayer, check if WE are the leader
+        // For now, check if local human is leader
+        // But we need to know WHICH human is leader if multiple.
 
+        let leader = game.players[game.leaderIndex];
+        if(!leader.isHuman) return;
+
+        // Add/Remove from proposed team
         let idx = game.proposedTeam.indexOf(id);
         if(idx > -1) {
             game.proposedTeam.splice(idx, 1);
@@ -88,20 +103,30 @@ export const ui = {
         this.updateActionArea('propose');
     },
 
-    renderBoard: function() {
-        this.renderPlayers();
-        game.missionHistory.forEach((result, idx) => {
+    renderBoard: function(state = null, localId = 0) {
+        // Use state if provided, otherwise fallback to game global (for legacy compatibility during refactor)
+        let players = state ? state.players : game.players;
+        let history = state ? state.missionHistory : game.missionHistory;
+        let missionIdx = state ? state.currentMissionIndex : game.currentMissionIndex;
+        let phase = state ? state.phase : game.phase;
+
+        this.renderPlayers(players, localId);
+
+        history.forEach((result, idx) => {
             let node = document.getElementById(`m-node-${idx}`);
-            node.className = `mission-node ${result ? 'mission-success' : 'mission-fail'}`;
+            if(node) node.className = `mission-node ${result ? 'mission-success' : 'mission-fail'}`;
         });
+
         // Highlight current mission
-        if(game.currentMissionIndex < 5) {
-            let curr = document.getElementById(`m-node-${game.currentMissionIndex}`);
+        if(missionIdx < 5) {
+            let curr = document.getElementById(`m-node-${missionIdx}`);
             if(curr) curr.classList.add('mission-current');
         }
+
+        if(phase) this.updateActionArea(phase);
     },
 
-    updateActionArea: function(phase, data) {
+    updateActionArea: function(phase) {
         const area = document.getElementById('action-buttons');
         const title = document.getElementById('phase-title');
         const desc = document.getElementById('phase-desc');
@@ -139,11 +164,15 @@ export const ui = {
         const log = document.getElementById('game-log');
         const entry = document.createElement('div');
         entry.className = 'log-entry';
-        entry.innerHTML = `> ${msg}`;
+        if(typeof msg === 'string' && msg.includes('<span')) {
+             entry.innerHTML = `> ${msg}`;
+        } else {
+             entry.innerText = `> ${msg}`;
+        }
         log.prepend(entry);
     },
 
-    showEndScreen: function(resistanceWon) {
+    showEndScreen: function(resistanceWon, players) {
         const area = document.getElementById('action-buttons');
         document.getElementById('phase-title').innerText = "GAME OVER";
         document.getElementById('phase-desc').innerText = resistanceWon ? "Resistance wins!" : "Spies win!";
@@ -151,7 +180,7 @@ export const ui = {
         area.innerHTML = `<button class='btn' onclick='location.reload()'>Play Again</button>`;
 
         let revealHTML = "<div class='role-reveal'>";
-        game.players.forEach(p => {
+        players.forEach(p => {
             revealHTML += `<div class="${p.role === 'spy' ? 'log-bad' : 'log-good'}">${p.name}: ${p.role.toUpperCase()}</div>`;
         });
         revealHTML += "</div>";
@@ -164,67 +193,51 @@ export const ui = {
         this.showScreen('pass');
     },
 
-    showPrivateScreen: function(player, action) {
-        this.showScreen('private');
-        const title = document.getElementById('private-title');
-        const desc = document.getElementById('private-desc');
-        const info = document.getElementById('private-role-info');
-        const btns = document.getElementById('private-buttons');
-        btns.innerHTML = '';
+    showActionButtons: function(phase, player, callback) {
+        const area = document.getElementById('action-buttons');
+        const title = document.getElementById('phase-title');
+        const desc = document.getElementById('phase-desc');
+        area.innerHTML = '';
 
-        // Show Role Info
-        let roleName = player.role.toUpperCase();
-        let roleClass = player.role === 'spy' ? 'log-bad' : 'log-good';
-        info.innerHTML = `You are: <span class="${roleClass}">${roleName}</span>`;
-
-        // If Spy, show partners
-        if(player.role === 'spy') {
-            let partners = game.players.filter(p => p.role === 'spy' && p.id !== player.id);
-            if(partners.length > 0) {
-                let names = partners.map(p => p.name).join(', ');
-                info.innerHTML += `<br><span style="font-size:0.8em">Allies: ${names}</span>`;
-            }
-        }
-
-        if(action === 'vote') {
-            title.innerText = "VOTE ON TEAM";
-            desc.innerText = `Leader proposed: ${game.proposedTeam.map(id => game.players[id].name).join(', ')}`;
+        if(phase === 'vote') {
+            title.innerText = "Phase: Voting";
+            desc.innerText = `Approve or Reject team: ${game.proposedTeam.map(id => game.players[id].name).join(', ')}`;
 
             let btnYes = document.createElement('button');
             btnYes.className = 'btn';
             btnYes.innerText = "APPROVE";
-            btnYes.onclick = () => turnManager.submitAction({id: player.id, approve: true});
+            btnYes.onclick = () => callback({id: player.id, approve: true});
 
             let btnNo = document.createElement('button');
             btnNo.className = 'btn btn-red';
             btnNo.innerText = "REJECT";
-            btnNo.onclick = () => turnManager.submitAction({id: player.id, approve: false});
+            btnNo.onclick = () => callback({id: player.id, approve: false});
 
-            btns.appendChild(btnYes);
-            btns.appendChild(btnNo);
-        } else if (action === 'mission') {
-            title.innerText = "MISSION ACTION";
-            desc.innerText = "Choose your action carefully.";
+            area.appendChild(btnYes);
+            area.appendChild(btnNo);
+        } else if (phase === 'mission') {
+            title.innerText = "Phase: Mission";
+            desc.innerText = "Choose your mission action.";
 
             if(player.role === 'spy') {
                 let btnFail = document.createElement('button');
                 btnFail.className = 'btn btn-red';
                 btnFail.innerText = "SABOTAGE";
-                btnFail.onclick = () => turnManager.submitAction({id: player.id, fail: true});
+                btnFail.onclick = () => callback({id: player.id, fail: true});
 
                 let btnSuccess = document.createElement('button');
                 btnSuccess.className = 'btn';
                 btnSuccess.innerText = "SUPPORT (BLUFF)";
-                btnSuccess.onclick = () => turnManager.submitAction({id: player.id, fail: false});
+                btnSuccess.onclick = () => callback({id: player.id, fail: false});
 
-                btns.appendChild(btnSuccess);
-                btns.appendChild(btnFail);
+                area.appendChild(btnSuccess);
+                area.appendChild(btnFail);
             } else {
                 let btn = document.createElement('button');
                 btn.className = 'btn';
                 btn.innerText = "SUPPORT MISSION";
-                btn.onclick = () => turnManager.submitAction({id: player.id, fail: false});
-                btns.appendChild(btn);
+                btn.onclick = () => callback({id: player.id, fail: false});
+                area.appendChild(btn);
             }
         }
     }

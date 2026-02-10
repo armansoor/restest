@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>THE RESISTANCE: AI PROTOCOL</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 
@@ -18,8 +19,16 @@
 
         <div id="screen-menu" class="screen active">
             <div class="card">
-                <h2>New Game Configuration</h2>
-                
+                <h2>Mode Selection</h2>
+                <button class="btn" id="btn-mode-single">Single Player (vs AI)</button>
+                <button class="btn" id="btn-mode-multi">Multiplayer (LAN/P2P)</button>
+                <button class="btn btn-outline" id="btn-rules">Mission Briefing (Rules)</button>
+            </div>
+        </div>
+
+        <div id="screen-single-setup" class="screen">
+            <div class="card">
+                <h2>Single Player Setup</h2>
                 <div class="form-group">
                     <label>Total Players (5-10)</label>
                     <select id="setup-players">
@@ -31,27 +40,51 @@
                         <option value="10">10 Players (4 Spies)</option>
                     </select>
                 </div>
-
-                <div class="form-group">
-                    <label>Human Players</label>
-                    <select id="setup-humans">
-                        <option value="1">1 Human (Solo vs AI)</option>
-                        <option value="2">2 Humans</option>
-                        <option value="3">3 Humans</option>
-                        <option value="5">All Humans (Hotseat)</option>
-                    </select>
-                </div>
-
                 <div class="form-group">
                     <label>AI Difficulty</label>
                     <select id="setup-difficulty">
-                        <option value="normal">Normal (Standard Logic)</option>
-                        <option value="hard">Hard (Bluffing & Aggressive)</option>
+                        <option value="normal">Normal</option>
+                        <option value="hard">Hard</option>
                     </select>
                 </div>
+                <button class="btn" id="btn-start-single">Start Mission</button>
+                <button class="btn btn-outline" id="btn-back-menu">Back</button>
+            </div>
+        </div>
 
-                <button class="btn" id="btn-init">Initialize Protocol</button>
-                <button class="btn btn-outline" id="btn-rules">Mission Briefing (Rules)</button>
+        <div id="screen-lobby" class="screen">
+            <div class="card">
+                <h2>Multiplayer Lobby</h2>
+                <div id="lobby-options">
+                    <button class="btn" id="btn-host-game">Host Game</button>
+                    <div style="margin: 20px 0; border-top: 1px solid #444;"></div>
+                    <div class="form-group">
+                        <label>Join Game (Room ID)</label>
+                        <input type="text" id="join-room-id" placeholder="Enter Host ID">
+                    </div>
+                    <button class="btn" id="btn-join-game">Join Game</button>
+                </div>
+
+                <div id="lobby-host-area" style="display:none;">
+                    <h3>Room ID: <span id="host-room-id" style="color:var(--gold)">Generating...</span></h3>
+                    <p>Share this ID with other players.</p>
+                    <div id="lobby-player-list" style="margin: 20px 0; min-height: 50px; background: #222; padding: 10px;">
+                        Waiting for players...
+                    </div>
+                    <div class="form-group">
+                        <label>Total Players Needed: <span id="lobby-count">0</span>/5+</label>
+                        <select id="setup-multi-total">
+                            <option value="5">5 Players</option>
+                            <option value="6">6 Players</option>
+                            <option value="7">7 Players</option>
+                            <option value="8">8 Players</option>
+                            <option value="9">9 Players</option>
+                            <option value="10">10 Players</option>
+                        </select>
+                    </div>
+                    <button class="btn" id="btn-start-multi" disabled>Start Game</button>
+                </div>
+                 <button class="btn btn-outline" id="btn-back-menu-lobby">Back</button>
             </div>
         </div>
 
@@ -74,23 +107,6 @@
             </div>
         </div>
 
-        <div id="screen-pass" class="screen">
-            <div class="card" style="text-align: center; padding: 40px;">
-                <h2>Next Player</h2>
-                <p>Pass the device to:</p>
-                <h1 id="pass-player-name" style="color: var(--gold); font-size: 2em; margin: 20px 0;">Player X</h1>
-                <button class="btn" id="btn-pass-confirm">I am Ready</button>
-            </div>
-        </div>
-
-        <div id="screen-private" class="screen">
-            <div class="card" style="text-align: center;">
-                <h2 id="private-title">SECRET ACTION</h2>
-                <p id="private-desc">...</p>
-                <div id="private-role-info" style="margin: 20px 0; padding: 10px; border: 1px dashed #555;"></div>
-                <div id="private-buttons"></div>
-            </div>
-        </div>
 
         <div id="screen-game" class="screen">
             <div class="mission-track" id="mission-track">
