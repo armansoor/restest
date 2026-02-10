@@ -257,6 +257,9 @@ document.getElementById('btn-start-single').addEventListener('click', () => {
         isMultiplayer: false,
         playerName: playerName
     });
+
+    // Ensure game screen is active after init (handled by eventBus but double check)
+    // Actually init calls ui.showRoleReveal, which then calls ui.initGameScreen
 });
 
 // Lobby Actions
@@ -292,8 +295,20 @@ document.getElementById('btn-start-multi').addEventListener('click', () => {
     }
 });
 
-document.getElementById('btn-back-menu').addEventListener('click', () => ui.showScreen('menu'));
+document.getElementById('btn-rules').addEventListener('click', () => {
+    const rulesScreen = document.getElementById('screen-rules');
+    if(rulesScreen) {
+        // Ensure it's not hidden by display:none in css
+        // ui.showScreen adds .active which is display:block in CSS
+        // But if we have inline style issues, clear them
+        rulesScreen.removeAttribute('style');
+        ui.showScreen('rules');
+        // Double check inner content is visible?
+        // It's a static HTML, should be fine.
+    }
+});
 document.getElementById('btn-back-menu-lobby').addEventListener('click', () => ui.showScreen('menu'));
+document.getElementById('btn-rules-back').addEventListener('click', () => ui.showScreen('menu'));
 
 // History
 document.getElementById('btn-show-history').addEventListener('click', () => {
