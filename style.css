@@ -90,6 +90,7 @@ select, input {
     justify-content: center;
     gap: 10px;
     margin-bottom: 20px;
+    flex-wrap: wrap; /* Allow wrapping on very small screens if needed */
 }
 .mission-node {
     width: 45px;
@@ -102,7 +103,18 @@ select, input {
     font-weight: bold;
     background: #222;
     transition: all 0.3s ease;
+    flex-shrink: 0;
 }
+
+/* Responsiveness for Mission Nodes */
+@media (max-width: 400px) {
+    .mission-node {
+        width: 35px;
+        height: 35px;
+        font-size: 0.8em;
+    }
+}
+
 .mission-success { background: var(--accent-blue); border-color: var(--accent-blue); color: #000; box-shadow: 0 0 10px var(--accent-blue); }
 .mission-fail { background: var(--accent-red); border-color: var(--accent-red); box-shadow: 0 0 10px var(--accent-red); }
 .mission-current { border-color: white; transform: scale(1.1); }
@@ -111,6 +123,13 @@ select, input {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
+}
+
+/* On mobile, allow smaller cards to fit 2 columns */
+@media (max-width: 400px) {
+    .player-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 
 .player-card {
@@ -122,6 +141,7 @@ select, input {
     position: relative;
     cursor: pointer;
     transition: background 0.2s;
+    user-select: none; /* Prevent text selection on rapid taps */
 }
 
 .player-card:hover { background: #3d3d3d; }
