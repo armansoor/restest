@@ -164,9 +164,26 @@ select, input {
 .screen { display: none; }
 .screen.active { display: block; animation: slideUp 0.5s ease-out; }
 
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&display=swap');
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-image:
+        linear-gradient(rgba(26, 26, 29, 0.95), rgba(26, 26, 29, 0.95)),
+        url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232b2b33' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+    font-family: 'Exo 2', sans-serif;
+}
+
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4); } 70% { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+@keyframes glow { from { box-shadow: 0 0 5px var(--accent-blue); } to { box-shadow: 0 0 20px var(--accent-blue); } }
 
 /* POLISH */
 .mission-current {
@@ -176,10 +193,40 @@ select, input {
 }
 
 .player-card {
+    background: linear-gradient(145deg, #2b2b33, #222);
+    border: 1px solid #444;
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
     transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    user-select: none;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
 }
-.player-card:hover { transform: translateY(-5px); }
-.player-card.selected { transform: scale(1.05); }
+
+.player-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--text-dim);
+    box-shadow: 0 8px 12px rgba(0,0,0,0.5);
+}
+
+.player-card.selected {
+    border-color: var(--accent-blue);
+    background: linear-gradient(145deg, #3a4a40, #2d3832);
+    box-shadow: 0 0 15px rgba(78, 204, 163, 0.2);
+}
+
+.player-card.is-me {
+    border-left: 4px solid var(--gold);
+}
+
+/* Card Badge Polish */
+.badge {
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
 
 /* Chat Polish */
 #chat-input {

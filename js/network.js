@@ -10,6 +10,8 @@ export const network = {
     players: [], // List of connected players {id, name, peerId}
 
     init: function() {
+        // Use default PeerJS cloud (null) for global connectivity.
+        // For local server, use: new Peer(null, { host: 'localhost', port: 9000, path: '/myapp' })
         this.peer = new Peer(null, {
             debug: 2
         });
