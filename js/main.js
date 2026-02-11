@@ -304,6 +304,7 @@ document.getElementById('btn-start-multi').addEventListener('click', () => {
     // Only Host can start
     if(network.isHost) {
         const totalP = parseInt(document.getElementById('setup-multi-total').value);
+        const difficulty = document.getElementById('setup-multi-difficulty').value;
         let humanCount = network.players.length;
 
         if (humanCount > totalP) {
@@ -321,8 +322,9 @@ document.getElementById('btn-start-multi').addEventListener('click', () => {
         game.init({
             totalPlayers: totalP,
             humanPlayers: humanCount, // Rest will be bots
-            difficulty: 'normal', // Could add difficulty selector to lobby
-            isMultiplayer: true
+            difficulty: difficulty,
+            isMultiplayer: true,
+            playerList: network.players
         });
     }
 });

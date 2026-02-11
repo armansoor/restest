@@ -40,8 +40,12 @@ export const game = {
         for(let i=0; i<totalP; i++) {
             let pName = `Bot ${i+1}`;
             if (i < humanP) {
+                // Multiplayer: Use names from playerList
+                if (settings.playerList && settings.playerList[i]) {
+                    pName = settings.playerList[i].name;
+                }
                 // If Single Player and i=0, use provided name
-                if (!this.isMultiplayer && i === 0 && settings.playerName) {
+                else if (!this.isMultiplayer && i === 0 && settings.playerName) {
                     pName = settings.playerName;
                 } else {
                     pName = `Player ${i+1}`;
