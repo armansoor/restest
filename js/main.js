@@ -245,15 +245,21 @@ document.getElementById('btn-mode-multi').addEventListener('click', () => {
     ui.showScreen('lobby');
 });
 
+// Helper to validate name
+function validateName(name) {
+    if (!name) return false;
+    if (name.length < 3 || name.length > 20) return false;
+    if (name.includes(' ')) return false;
+    return true;
+}
+
 // Single Player Start
 document.getElementById('btn-start-single').addEventListener('click', () => {
     const totalP = parseInt(document.getElementById('setup-players').value);
     const diff = document.getElementById('setup-difficulty').value;
 
-    // Capture Player Name?
-    // We didn't pass playerName to game.init yet.
-    // game.js init creates players. We should pass the name.
-    const playerName = document.getElementById('player-name-input').value || "Agent 007";
+    // Default name for single player
+    const playerName = "Player 1";
 
     game.init({
         totalPlayers: totalP,
@@ -262,14 +268,19 @@ document.getElementById('btn-start-single').addEventListener('click', () => {
         isMultiplayer: false,
         playerName: playerName
     });
-
-    // Ensure game screen is active after init (handled by eventBus but double check)
-    // Actually init calls ui.showRoleReveal, which then calls ui.initGameScreen
 });
 
 // Lobby Actions
 document.getElementById('btn-host-game').addEventListener('click', () => {
-    const playerName = document.getElementById('player-name-input').value || "Host";
+    const nameInput = document.getElementById('player-name-input');
+    const playerName = nameInput.value.trim();
+
+    if (!validateName(playerName)) {
+        alert("Please enter a valid codename (3-20 characters, no spaces).");
+        nameInput.focus();
+        return;
+    }
+
     network.hostGame(playerName);
     document.getElementById('lobby-host-area').style.display = 'block';
     document.getElementById('lobby-options').style.display = 'none';
@@ -277,7 +288,15 @@ document.getElementById('btn-host-game').addEventListener('click', () => {
 
 document.getElementById('btn-join-game').addEventListener('click', () => {
     const roomId = document.getElementById('join-room-id').value;
-    const playerName = document.getElementById('player-name-input').value || "Agent";
+    const nameInput = document.getElementById('player-name-input');
+    const playerName = nameInput.value.trim();
+
+    if (!validateName(playerName)) {
+        alert("Please enter a valid codename (3-20 characters, no spaces).");
+        nameInput.focus();
+        return;
+    }
+
     if(roomId) network.joinGame(roomId, playerName);
 });
 
@@ -285,16 +304,24 @@ document.getElementById('btn-start-multi').addEventListener('click', () => {
     // Only Host can start
     if(network.isHost) {
         const totalP = parseInt(document.getElementById('setup-multi-total').value);
-        // Ensure we have enough connected players?
-        // Game allows filling with bots if we want, or force humans.
-        // Prompt says "Multiplayer LAN", implies full human?
-        // But logic supports mix. Let's assume remaining are bots.
         let humanCount = network.players.length;
+
+        if (humanCount > totalP) {
+            alert(`Too many players joined for a ${totalP}-player game!`);
+            return;
+        }
+
+        // Remaining slots will be filled with bots by game.js automatically
+        // because we pass humanPlayers = humanCount.
+        // game.js init loop: for(let i=0; i<totalP; i++) { isHuman: i < humanP }
+        // This implies Humans MUST be the first N players.
+        // network.js assigns IDs 0, 1, 2... sequentially.
+        // So this logic works perfectly.
 
         game.init({
             totalPlayers: totalP,
-            humanPlayers: humanCount,
-            difficulty: 'normal', // Default for now
+            humanPlayers: humanCount, // Rest will be bots
+            difficulty: 'normal', // Could add difficulty selector to lobby
             isMultiplayer: true
         });
     }
