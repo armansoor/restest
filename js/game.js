@@ -16,6 +16,9 @@ export const game = {
     isMultiplayer: false,
 
     init: function(settings) {
+        // Store settings for restart
+        this.lastSettings = settings;
+
         const totalP = settings.totalPlayers;
         const humanP = settings.humanPlayers;
         this.difficulty = settings.difficulty;
@@ -29,6 +32,7 @@ export const game = {
         this.voteTrack = 0;
         this.leaderIndex = Math.floor(Math.random() * totalP);
         this.proposedTeam = [];
+        this.phase = 'setup';
 
         // Create Roles
         let spyCount = GAME_MATRIX[totalP].spies;
@@ -57,7 +61,13 @@ export const game = {
                 role: roles[i],
                 isHuman: i < humanP,
                 name: pName,
-                suspicion: 0
+                suspicion: 0,
+                // Stats
+                stats: {
+                    missionsWent: 0,
+                    votesRejected: 0,
+                    votesApproved: 0
+                }
             });
         }
 
@@ -130,6 +140,10 @@ export const game = {
 
         // Construct vote string for UI
         let voteResults = votes.map(v => {
+            // Update stats
+            if(v.approve) this.players[v.id].stats.votesApproved++;
+            else this.players[v.id].stats.votesRejected++;
+
             return { name: this.players[v.id].name, approve: v.approve };
         });
 
@@ -237,7 +251,11 @@ export const game = {
     },
 
     emitStateUpdate: function() {
-        eventBus.emit('stateUpdate', {
+        eventBus.emit('stateUpdate', this.getPublicState());
+    },
+
+    getPublicState: function() {
+        return {
             players: this.players,
             missionHistory: this.missionHistory,
             currentMissionIndex: this.currentMissionIndex,
@@ -245,7 +263,8 @@ export const game = {
             leaderIndex: this.leaderIndex,
             phase: this.phase,
             proposedTeam: this.proposedTeam,
-            voteHistoryLog: this.voteHistoryLog
-        });
+            voteHistoryLog: this.voteHistoryLog,
+            isMultiplayer: this.isMultiplayer
+        };
     }
 };

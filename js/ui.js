@@ -1,6 +1,7 @@
 // Assuming game state is mostly global or passed in.
 import { game } from './game.js';
 import { GAME_MATRIX } from './constants.js';
+import { Toaster, Animator } from './utils/animations.js';
 
 export const ui = {
     screens: ['menu', 'game', 'rules', 'pass', 'private'],
@@ -11,7 +12,10 @@ export const ui = {
         document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         // Show target
         const target = document.getElementById('screen-'+id);
-        if(target) target.classList.add('active');
+        if(target) {
+            target.classList.add('active');
+            Animator.animateFadeIn(target.querySelectorAll('.card, .player-grid, h1, h2, h3'));
+        }
     },
 
     initGameScreen: function(totalP, players) {
@@ -101,10 +105,18 @@ export const ui = {
 
             let nameText = p.name + (isMe ? " (YOU)" : "");
 
+            // Generate avatar seed from name
+            // minidenticons automatically replaces <minidenticon-svg> tags
+            // We need to make sure we use the tag correctly.
+            // Since it's a web component, we just insert the tag.
+
             div.innerHTML = `
-                <div style="font-size: 1.1em; margin-bottom: 4px;">${nameText}</div>
-                ${roleText}
-                ${leaderBadge}
+                <div style="display:flex; flex-direction:column; align-items:center;">
+                    <minidenticon-svg username="${p.name}" style="background:#222; border-radius:50%; width:60px; height:60px; margin-bottom:5px;"></minidenticon-svg>
+                    <div style="font-size: 1.1em; margin-bottom: 4px; font-weight:bold;">${nameText}</div>
+                    ${roleText}
+                    ${leaderBadge}
+                </div>
             `;
             div.onclick = () => this.handlePlayerClick(p.id);
             grid.appendChild(div);
@@ -229,6 +241,16 @@ export const ui = {
              entry.innerText = `> ${msg}`;
         }
         log.prepend(entry);
+
+        // Also show important logs as Toasts
+        // Simple heuristic: if uppercase or exclamation, it's important?
+        // Or if it contains "APPROVED", "REJECTED", "SUCCESS", "FAILED"
+        if(msg.includes('APPROVED') || msg.includes('REJECTED') || msg.includes('SUCCESS') || msg.includes('FAILED') || msg.includes('SPIES WIN')) {
+            let type = (msg.includes('SUCCESS') || msg.includes('APPROVED') || msg.includes('Resistance wins')) ? 'success' : 'error';
+            // Wait, REJECTED is technically 'neutral' game flow but red color.
+            if(msg.includes('REJECTED')) type = 'error';
+            Toaster.show(msg.replace(/<[^>]*>/g, ''), type);
+        }
     },
 
     showEndScreen: function(resistanceWon, players) {
@@ -239,13 +261,55 @@ export const ui = {
         document.getElementById('game-status-text').innerText = "MISSION COMPLETE";
         document.getElementById('game-status-text').style.color = resistanceWon ? "var(--accent-blue)" : "var(--accent-red)";
 
-        area.innerHTML = `<button class='btn' onclick='location.reload()'>Play Again</button>`;
+        area.innerHTML = "";
+
+        let restartBtn = document.createElement('button');
+        restartBtn.className = 'btn';
+        restartBtn.innerText = "Play Again";
+        restartBtn.onclick = () => {
+             // Logic: If Single Player, just re-init.
+             // If Multiplayer Host, emit restart event.
+             // If Multiplayer Client, wait for host (disable button or show text).
+
+             // We need to access game state or network state.
+             // Ideally we emit an event that main.js handles.
+             if(game.isMultiplayer) {
+                 if(network.isHost) {
+                      eventBus.emit('gameRestart', game.lastSettings);
+                 } else {
+                      // Client cannot restart
+                      alert("Waiting for Host to restart...");
+                 }
+             } else {
+                 eventBus.emit('gameRestart', game.lastSettings);
+             }
+        };
+
+        if (game.isMultiplayer && !network.isHost) {
+            restartBtn.innerText = "Waiting for Host...";
+            restartBtn.disabled = true;
+        }
+
+        area.appendChild(restartBtn);
 
         let revealHTML = "<div class='role-reveal'>";
+        revealHTML += "<h3>Operative Status Report</h3>";
+        revealHTML += "<table style='width:100%; border-collapse:collapse; text-align:left; font-size:0.9em;'>";
+        revealHTML += "<tr style='border-bottom:1px solid #444;'><th>Name</th><th>Role</th><th>Approve/Reject</th></tr>";
+
         players.forEach(p => {
-            revealHTML += `<div class="${p.role === 'spy' ? 'log-bad' : 'log-good'}">${p.name}: ${p.role.toUpperCase()}</div>`;
+            let roleClass = p.role === 'spy' ? 'log-bad' : 'log-good';
+            // Need to ensure stats exist (in case of legacy/restart issues)
+            let approved = p.stats ? p.stats.votesApproved : 0;
+            let rejected = p.stats ? p.stats.votesRejected : 0;
+
+            revealHTML += `<tr>
+                <td>${p.name}</td>
+                <td class="${roleClass}">${p.role.toUpperCase()}</td>
+                <td>${approved} / ${rejected}</td>
+            </tr>`;
         });
-        revealHTML += "</div>";
+        revealHTML += "</table></div>";
         document.getElementById('game-log').innerHTML = revealHTML;
     },
 
@@ -277,6 +341,14 @@ export const ui = {
         this.pendingPlayer = player;
         document.getElementById('pass-player-name').innerText = player.name;
         this.showScreen('pass');
+    },
+
+    reset: function() {
+        document.getElementById('game-log').innerHTML = '';
+        document.getElementById('action-buttons').innerHTML = '';
+        document.getElementById('mission-track').innerHTML = '';
+        document.getElementById('vote-track-display')?.remove();
+        document.getElementById('player-grid').innerHTML = '';
     },
 
     showActionButtons: function(phase, player, callback) {
