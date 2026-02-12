@@ -32,7 +32,12 @@ export const network = {
 
         this.peer.on('error', (err) => {
             console.error(err);
-            alert("Network Error: " + err.type);
+            // Dynamic import to avoid circular dependency issues at top level if needed,
+            // or just rely on global Toastify or imported Toaster if available.
+            // Since we are refactoring, let's use Toaster if we can import it.
+            // But we didn't import Toaster here yet.
+            // Let's assume we add import at top.
+            import('./utils/animations.js').then(m => m.Toaster.show("Network Error: " + err.type, "error"));
         });
     },
 
@@ -62,8 +67,8 @@ export const network = {
         });
 
         this.hostConn.on('close', () => {
-             alert("Disconnected from Host");
-             location.reload();
+             import('./utils/animations.js').then(m => m.Toaster.show("Disconnected from Host", "error"));
+             setTimeout(() => location.reload(), 2000);
         });
     },
 
@@ -71,12 +76,21 @@ export const network = {
         // We need to wait for 'open' before sending anything, but for 'data' logic it's fine
         conn.on('data', (data) => {
             if(data.type === 'join') {
-                if(this.players.length >= 10) {
-                    conn.send({type: 'error', msg: 'Room full'});
-                    return;
+                // If game in progress, add as spectator?
+                // Or if > 10 players.
+                // For now, let's allow > 10 but treat as spectator if game running or > 10.
+                // But game logic hard caps at 10.
+
+                let isSpectator = this.players.length >= 10;
+                // If game already started (check game.phase?), they must be spectator.
+                // We need to import game or check a global flag?
+                // But circular dependency if we import game...
+                // We can use eventBus query? No, just check window.game.phase (since it's exposed)
+                if (window.game && window.game.phase !== 'setup' && window.game.phase !== 'gameover') {
+                    isSpectator = true;
                 }
 
-                let newPlayerId = this.players.length;
+                let newPlayerId = this.players.length; // Still give them an ID for network routing
                 // Use provided name or fallback
                 let pName = data.name || `Player ${newPlayerId + 1}`;
                 let newPlayer = {
@@ -93,9 +107,19 @@ export const network = {
                 // Confirm join to client
                 conn.send({ type: 'joined', playerId: newPlayerId, players: this.players.map(p => ({name: p.name, id: p.id})) });
 
-                // Broadcast updated list to all
-                this.broadcast({ type: 'lobbyUpdate', players: this.players.map(p => ({name: p.name, id: p.id})) });
-                eventBus.emit('playerListUpdate', this.players);
+                // If game is in progress, send current state to spectator
+                if(isSpectator && window.game) {
+                    // Send full state
+                    // We need a slight delay to ensure client is ready?
+                    setTimeout(() => {
+                        conn.send({ type: 'gameState', state: window.game.getPublicState() });
+                        conn.send({ type: 'log', msg: 'You have joined as a spectator.' });
+                    }, 500);
+                } else {
+                    // Broadcast updated list to all (only useful in lobby)
+                    this.broadcast({ type: 'lobbyUpdate', players: this.players.map(p => ({name: p.name, id: p.id})) });
+                    eventBus.emit('playerListUpdate', this.players);
+                }
             }
 
             if(data.type === 'action') {
@@ -157,6 +181,10 @@ export const network = {
         else if(data.type === 'log') eventBus.emit('log', data.msg);
         else if(data.type === 'gameOver') eventBus.emit('gameOver', data);
         else if(data.type === 'chat') eventBus.emit('chatMessage', data);
+        else if(data.type === 'gameRestart') {
+             // Client clears UI
+             eventBus.emit('gameRestart', {}); // Just trigger UI cleanup
+        }
     },
 
     broadcast: function(msg) {

@@ -162,7 +162,9 @@ select, input {
 
 /* SCREENS & ANIMATION */
 .screen { display: none; }
-.screen.active { display: block; animation: slideUp 0.5s ease-out; }
+.screen.active { display: block; }
+/* Animation handled by JS Anime.js now, remove pure CSS animation to avoid conflict? */
+/* Actually, keeping it as fallback or initial state is fine, but let's remove slideUp to let Anime.js take over fully if we want. */
 
 @import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700&display=swap');
 
@@ -236,6 +238,44 @@ body {
 #btn-send-chat {
     border-radius: 0 4px 4px 0;
     width: auto;
+}
+
+/* MOBILE BOTTOM SHEET FOR ACTIONS */
+@media (max-width: 600px) {
+    #action-area {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        background: #2b2b33;
+        border-top: 4px solid var(--accent-blue);
+        border-radius: 12px 12px 0 0;
+        z-index: 100;
+        padding: 15px;
+        box-shadow: 0 -5px 20px rgba(0,0,0,0.5);
+        margin-bottom: 0;
+    }
+
+    /* Push content up so it's not hidden behind the fixed action area */
+    #screen-game {
+        padding-bottom: 140px;
+    }
+
+    .player-grid {
+        /* Make grid smaller on mobile to fit more */
+        grid-template-columns: repeat(3, 1fr);
+        gap: 5px;
+    }
+
+    .player-card {
+        padding: 8px;
+        font-size: 0.8rem;
+    }
+
+    minidenticon-svg {
+        width: 40px !important;
+        height: 40px !important;
+    }
 }
 
 /* LOG */

@@ -3,9 +3,16 @@ import { ui } from './ui.js';
 import { eventBus } from './eventBus.js';
 import { network } from './network.js';
 import { chatter } from './chatter.js';
+import { SpectatorManager } from './utils/spectator.js';
+import { Toaster } from './utils/animations.js';
+import { ThemeManager } from './utils/audiovisual.js';
+import { Tutorial } from './utils/tutorial.js';
 
 // Initialize subsystems
 chatter.init();
+Tutorial.hasRun = false; // Reset for session if needed, or use localStorage check inside Tutorial
+SpectatorManager.init();
+// ThemeManager has no init
 
 // --- Global Expose ---
 window.game = game;
@@ -46,6 +53,43 @@ eventBus.on('lobbyJoined', (players) => {
 eventBus.on('lobbyUpdate', (players) => {
     const list = document.getElementById('lobby-player-list');
     list.innerHTML = players.map(p => `<div>${p.name} ${p.id===0 ? '(Host)' : ''}</div>`).join('');
+});
+
+eventBus.on('gameRestart', (settings) => {
+    // Only Host triggers this, but clients receive it via network if needed
+    // Actually, game.js emits this when host clicks "Play Again"
+    // We need to re-init game with same players but new roles
+
+    // If Multiplayer
+    if(game.isMultiplayer && network.isHost) {
+        // Shuffle roles is handled in game.init
+        // We just need to call game.init again with preserved settings
+        // But we need to make sure we don't drop connections
+
+        // Preserve current player list from network
+        // Reuse settings
+        game.init({
+            totalPlayers: settings.totalPlayers,
+            humanPlayers: settings.humanPlayers,
+            difficulty: settings.difficulty,
+            isMultiplayer: true,
+            playerList: network.players
+        });
+
+        // Broadcast restart to clients
+        // The game.init emits 'gameInit', which we already broadcast?
+        // Let's check game.js... yes, game.init emits 'gameInit'.
+        // And main.js listens to 'gameInit'.
+        // inside 'gameInit' listener:
+        // ui.showRoleReveal...
+
+        // But we need to tell clients to reset their local state first?
+        // Actually 'gameInit' payload contains everything needed.
+        // However, we might want a specific 'restart' event to clear logs/chat?
+        network.broadcast({ type: 'gameRestart' });
+    } else if (!game.isMultiplayer) {
+         game.init(settings);
+    }
 });
 
 eventBus.on('networkAction', (data) => {
@@ -97,6 +141,9 @@ eventBus.on('networkAction', (data) => {
 // --- Game Logic Events ---
 
 eventBus.on('stateUpdate', (state) => {
+    // Update theme
+    ThemeManager.setTheme(state.phase);
+
     // If Host, broadcast state
     if(network.isHost) {
         network.broadcast({ type: 'gameState', state: state });
@@ -115,13 +162,33 @@ eventBus.on('log', (msg) => {
 });
 
 eventBus.on('gameInit', (data) => {
+    // Reset UI state for restart
+    ui.reset();
+
     // Show Role Reveal instead of going straight to game
     // We need to know OUR player object.
     let myId = game.isMultiplayer ? (network.isHost ? 0 : network.myPlayerId) : 0;
 
-    // In Single Player, I am 0. In Multi, I have an ID.
-    // However, data.players is the full list.
+    // If I am a spectator (not in player list), handle gracefully
+    // In current logic, spectators might not be in data.players if they joined late?
+    // Wait, game.init uses network.players.
+    // If spectator joined LATE, they are in network.players but maybe not in game.players if game already started?
+    // But here we are INIT-ing a NEW game. So everyone currently connected becomes a player.
+
+    // However, if we support "Spectator Mode" explicitly where >10 players or late joiners:
+    // We need to check if myId is valid in data.players
+
     let me = data.players.find(p => p.id === myId);
+
+    if(!me) {
+        // I am a spectator
+        SpectatorManager.setSpectator(true);
+        ui.initGameScreen(data.totalPlayers, data.players);
+        ui.log("You are spectating this game.");
+        return;
+    } else {
+        SpectatorManager.setSpectator(false);
+    }
 
     // Check for spies
     let spies = [];
@@ -131,6 +198,8 @@ eventBus.on('gameInit', (data) => {
 
     ui.showRoleReveal(me, spies, () => {
         ui.initGameScreen(data.totalPlayers, data.players);
+        // Start Tutorial if first time
+        Tutorial.start();
     });
 });
 
@@ -249,7 +318,7 @@ document.getElementById('btn-mode-multi').addEventListener('click', () => {
 function validateName(name) {
     if (!name) return false;
     if (name.length < 3 || name.length > 20) return false;
-    if (name.includes(' ')) return false;
+    // if (name.includes(' ')) return false; // Allow spaces for better UX
     return true;
 }
 
@@ -276,7 +345,8 @@ document.getElementById('btn-host-game').addEventListener('click', () => {
     const playerName = nameInput.value.trim();
 
     if (!validateName(playerName)) {
-        alert("Please enter a valid codename (3-20 characters, no spaces).");
+        Toaster.show("Please enter a valid codename (3-20 characters).", "error");
+        Toaster.show("Please enter a valid codename (3-20 characters).", "error");
         nameInput.focus();
         return;
     }
@@ -308,7 +378,7 @@ document.getElementById('btn-start-multi').addEventListener('click', () => {
         let humanCount = network.players.length;
 
         if (humanCount > totalP) {
-            alert(`Too many players joined for a ${totalP}-player game!`);
+            Toaster.show(`Too many players joined for a ${totalP}-player game!`, "error");
             return;
         }
 
